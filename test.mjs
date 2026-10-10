@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,dispatch,validate,migrate,INDUSTRIES,reports,route,sectorStages} from './v71.js';
+import {createWorld,dispatch,validate,migrate,INDUSTRIES,reports,route,sectorStages,specs} from './v71.js';
 const cmd=(w,kind,companyId,more={})=>dispatch(w,{id:'test-'+(w.counter+1)+'-'+kind,kind,companyId,...more});
 test('six industries are available',()=>{const w=createWorld();assert.equal(w.companies.length,6);for(const i of INDUSTRIES)assert.ok(w.companies.some(c=>c.industry===i));validate(w)});
 test('six industry contracts complete and receive payment',()=>{for(const industry of INDUSTRIES){let w=createWorld(),c=w.companies.find(x=>x.industry===industry),q=w.market.find(x=>x.companyId===c.id);w=cmd(w,'accept',c.id,{quoteId:q.id});assert.equal(w.contracts[0].status,'working');w=cmd(w,'advance',c.id,{ticks:9});assert.equal(w.contracts[0].status,'paid');assert.equal(w.companies.find(x=>x.id===c.id).receivables,0);validate(w)}});
