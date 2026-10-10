@@ -1,0 +1,23 @@
+export const INDUSTRIES=['automotive','rental','repair','bus','manufacturing','logistics'];
+export const NAMES={automotive:'自動車メーカー',rental:'レンタカー',repair:'整備・チューニング',bus:'バス会社',manufacturing:'製造業・町工場',logistics:'運送・物流'};
+const specs={
+automotive:{item:'部品セット',stock:4,input:1,cost:40000,revenue:150000,duration:2,output:'完成車',label:'部品組立・完成車販売'},
+rental:{item:'貸出可能車両',stock:3,input:0,cost:4000,revenue:18000,duration:3,output:'貸出履歴',label:'車両貸出・返却'},
+repair:{item:'補修部品',stock:8,input:1,cost:8000,revenue:32000,duration:2,output:'整備履歴',label:'故障診断・補修'},
+bus:{item:'営業車両',stock:2,input:0,cost:13000,revenue:23000,duration:2,output:'運行履歴',label:'路線バス運行'},
+manufacturing:{item:'素材',stock:12,input:2,cost:9000,revenue:36000,duration:3,output:'完成部品',label:'加工・検査・納品'},
+logistics:{item:'トラック',stock:3,input:0,cost:9000,revenue:29000,duration:2,output:'配送履歴',label:'集荷・輸送・引渡し'}
+};
+function id(w,p){return p+'-'+(++w.counter)}
+function emit(w,type,c,detail,commandId){w.events.push({id:id(w,'EV'),tick:w.tick,type,companyId:c.id,detail,commandId})}
+function post(w,c,memo,debit,credit){const sum=o=>Object.values(o).reduce((a,b)=>a+b,0);if(sum(debit)!==sum(credit))throw Error('貸借不一致');w.ledger.push({id:id(w,'JE'),tick:w.tick,companyId:c.id,memo,debit,credit})}
+export function createWorld(seed=42){const w={version:1,seed,tick:0,counter:0,playerCash:1000000,companies:[],jobs:[],ledger:[],events:[],commands:{}};for(const [i,industry] of INDUSTRIES.entries()){const s=specs[industry],c={id:'C-'+(i+1),name:NAMES[industry]+' '+(i+1)+'号',industry,cash:500000,equity:500000,profit:0,inventory:{[s.item]:s.stock},assets:{},completed:0};w.companies.push(c);post(w,c,'初期資本',{cash:500000},{equity:500000})}return w}
+function company(w,cid){const c=w.companies.find(x=>x.id===cid);if(!c)throw Error('企業が存在しません');return c}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;const w=structuredClone(world),c=company(w,cmd.companyId),s=specs[c.industry];
+if(cmd.kind==='start'){if(w.jobs.some(j=>j.companyId===c.id&&j.status==='running'))throw Error('進行中の作業があります');if((c.inventory[s.item]??0)<s.input)throw Error(s.item+'が不足しています');if(c.cash<s.cost)throw Error('運転資金が不足しています');c.inventory[s.item]-=s.input;const job={id:id(w,'JOB'),companyId:c.id,industry:c.industry,label:s.label,remaining:s.duration,revenue:s.revenue,cost:s.cost,consumes:s.input?{[s.item]:s.input}:{},produces:{[s.output]:1},status:'running'};w.jobs.push(job);emit(w,'job.started',c,job.label+'を開始',cmd.id)}
+else if(cmd.kind==='invest'){const amt=cmd.amount??0;if(!Number.isSafeInteger(amt)||amt<=0||w.playerCash<amt)throw Error('出資額が不正または個人資金不足');w.playerCash-=amt;c.cash+=amt;c.equity+=amt;post(w,c,'個人からの出資',{cash:amt},{equity:amt});emit(w,'capital.invested',c,amt+'円の出資',cmd.id)}
+else if(cmd.kind==='purchase'){const qty=cmd.quantity??0,item=cmd.item??s.item;if(item!==s.item||!Number.isSafeInteger(qty)||qty<1||qty>10000)throw Error('購買指定が不正');const amt=qty*1000;if(c.cash<amt)throw Error('仕入資金不足');c.cash-=amt;c.inventory[item]=(c.inventory[item]??0)+qty;post(w,c,'素材・部品仕入',{inventory:amt},{cash:amt});emit(w,'inventory.purchased',c,item+' '+qty+'個',cmd.id)}
+else if(cmd.kind==='advance'){const ticks=cmd.ticks??1;if(!Number.isSafeInteger(ticks)||ticks<1||ticks>100000)throw Error('進行時間が不正');for(let i=0;i<ticks;i++){w.tick++;for(const job of w.jobs){if(job.status!=='running')continue;job.remaining--;if(job.remaining>0)continue;const target=company(w,job.companyId);if(target.cash<job.cost){job.remaining=1;emit(w,'job.blocked',target,'費用を支払えず作業を保留');continue}target.cash+=job.revenue-job.cost;target.profit+=job.revenue-job.cost;for(const [k,v]of Object.entries(job.produces))target.assets[k]=(target.assets[k]??0)+v;post(w,target,job.label+'の売上・作業費',{cash:job.revenue,expense:job.cost},{revenue:job.revenue,cash:job.cost});job.status='done';target.completed++;emit(w,'job.completed',target,job.label+'完了・売上'+job.revenue+'円')}}emit(w,'time.advanced',c,ticks+'日進行',cmd.id)}
+else throw Error('不明な操作');w.commands[cmd.id]=true;validate(w);return w}
+export function validate(w){if(!Number.isSafeInteger(w.tick)||w.tick<0)throw Error('不正時刻');for(const c of w.companies){if(!Number.isSafeInteger(c.cash)||c.cash<0)throw Error('不正残高');for(const n of Object.values(c.inventory))if(!Number.isSafeInteger(n)||n<0)throw Error('在庫不正')}for(const j of w.ledger){const t=o=>Object.values(o).reduce((a,b)=>a+b,0);if(t(j.debit)!==t(j.credit))throw Error('貸借不一致')}return true}
+export function stableHash(w){const text=JSON.stringify(w);let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16)}
