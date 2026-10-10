@@ -1,0 +1,13 @@
+import {createWorld as baseCreate,migrate as baseMigrate,dispatch as baseDispatch,validate as baseValidate,reports as baseReports,INDUSTRIES,NAMES,CITY,specs,route,sectorStages} from './v58.js';
+export {INDUSTRIES,NAMES,CITY,specs,route,sectorStages};
+function upgrade(w){w.version=20;w.vehicleJourneys??=[];w.npcAutoSales??=[];w.sectorReviews??=[];w.housing??={rent:0,deposit:0};return w}
+export const createWorld=(seed=42)=>upgrade(baseCreate(seed));
+export function migrate(raw){if(!raw)throw Error('保存データなし');const x=structuredClone(raw);if(x.version===20)x.version=19;return upgrade(baseMigrate(x))}
+export const reports=(w,id)=>({...baseReports(w,id),journeys:w.vehicleJourneys.filter(x=>x.companyId===id),reviews:w.sectorReviews.filter(x=>x.companyId===id)});
+export function validate(w){baseValidate({...w,version:19});for(const x of w.vehicleJourneys)if(!Array.isArray(x.path)||x.path.length<2)throw Error('輸送経路不正');return true}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;const cid=cmd.companyId||world.companies[0].id;
+if(cmd.kind==='driveRoute'){const dest=cmd.to||'depot',vehicle=world.vehicleAssets.find(v=>v.companyId===cid);if(!vehicle)throw Error('車両なし');const r=route(vehicle.location,dest);if(r.path.length<2)throw Error('移動先を変更してください');const w=upgrade(baseDispatch({...world,version:19},{...cmd,kind:'executeShipment',to:dest}));w.vehicleJourneys.push({companyId:cid,tick:w.tick,path:r.path,km:r.distance});validate(w);return w}
+if(cmd.kind==='npcAutoMarket'){let w=upgrade(structuredClone(world));for(let i=0;i<w.npcAccounts.length;i++){const seller=w.npcAccounts[i],buyer=w.npcAccounts[(i+1)%w.npcAccounts.length];const amount=Math.min(500,seller.inventory,buyer.cash);if(amount<1)continue;w=upgrade(baseDispatch({...w,version:19},{id:cmd.id+'-trade-'+i,kind:'npcSellInventory',seller:seller.id,buyer:buyer.id,amount}));w.npcAutoSales.push({tick:w.tick,seller:seller.id,buyer:buyer.id,amount})}w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='sectorReview'){const w=upgrade(structuredClone(world));const c=w.companies.find(x=>x.id===cid);if(!c)throw Error('企業なし');w.sectorReviews.push({tick:w.tick,companyId:cid,industry:c.industry,contracts:w.contracts.filter(x=>x.companyId===cid&&x.status==='working').length,staff:w.staff.filter(x=>x.companyId===cid).length});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='setRent'){const rent=cmd.rent??50000;if(!Number.isSafeInteger(rent)||rent<0||rent>1000000)throw Error('家賃が不正');const w=upgrade(structuredClone(world));w.housing.rent=rent;w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+const w=upgrade(baseDispatch({...world,version:19},cmd));validate(w);return w}
