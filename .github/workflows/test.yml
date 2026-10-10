@@ -1,4 +1,4 @@
-name: Ver 7.2 Tests
+name: Ver 7.3 Tests
 on:
   push:
     branches: [main]
@@ -48,6 +48,7 @@ jobs:
           node --check v70.js
           node --check v71.js
           node --check v72.js
+          node --check v73.js
           node --check city3d.js
           node --check main.js
           node --check storage.js
