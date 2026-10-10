@@ -8,10 +8,11 @@ if(await page.locator('[data-tab="v68"]').count())throw Error('Legacy tabs must 
 for(let i=0;i<6;i++){
   await page.locator('#company').selectOption({index:i});
   await page.locator('[data-tab="industry"]').click();
-  await page.getByRole('button',{name:'この業種の工程・人員を点検'}).click();
+  await page.locator('[data-act="sectorTask70"]').first().click();
+  if(await page.locator('[data-act="sectorTask70"]').count()!==3)throw Error('業種ごとの3工程が表示されていません');
 }
-await page.getByRole('button',{name:'財務と仕訳を確認'}).click();
-await page.getByRole('button',{name:'NPC企業の取引を更新'}).click();
+await page.getByRole('button',{name:'法人資金の確認'}).click();
+await page.getByRole('button',{name:'NPC経済サイクル'}).click();
 const canvas=page.locator('#city3d');await canvas.waitFor();
 const visual=await canvas.evaluate(c=>({width:c.width,height:c.height,context:!!c.getContext('webgl')}));
 if(!visual.width||!visual.height)throw Error('3D canvas missing');
