@@ -20,4 +20,4 @@ else if(cmd.kind==='fleetTrip'){const destination=cmd.to||'depot';const vehicle=
 else if(cmd.kind==='laborDay'){const employee=w.staff.find(e=>e.id===cmd.staffId&&e.companyId===c.id);if(!employee)throw Error('社員不在');const hours=cmd.hours??8;if(!Number.isInteger(hours)||hours<1||hours>8)throw Error('勤務時間1〜8時間');const prior=w.laborLogs.filter(x=>x.tick===w.tick&&x.staffId===employee.id).reduce((s,x)=>s+x.hours,0);if(prior+hours>8)throw Error('1日8時間を超過');w.laborLogs.push({tick:w.tick,companyId:c.id,staffId:employee.id,hours});employee.skill=Math.min(100,employee.skill+Math.floor(hours/8))}
 else if(cmd.kind==='dailyLiving'){const dayCost=sum(w.lifeBudget);if(w.playerCash<dayCost)throw Error('生活資金不足');w.playerCash-=dayCost;w.lifeHistory.push({tick:w.tick,kind:'dailyLiving',amount:dayCost})}
 else if(cmd.kind==='loanInterest'){throw Error('利息は日付進行で自動計上されます')}
-w.audit.push({tick:w.tick,companyId:c.id,type:cmd.kind,detail:cmd.kind});w.commands[cmd.id]=true;validate(w);return w}
+w.audit.push({id:'AUD-'+(++w.counter),tick:w.tick,companyId:c.id,type:cmd.kind,detail:cmd.kind});w.commands[cmd.id]=true;validate(w);return w}
