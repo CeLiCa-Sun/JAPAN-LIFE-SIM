@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,dispatch,validate,migrate,INDUSTRIES} from './v42.js';
+import {createWorld,dispatch,validate,migrate,INDUSTRIES,reports} from './v44.js';
 const cmd=(w,kind,companyId,more={})=>dispatch(w,{id:'test-'+(w.counter+1)+'-'+kind,kind,companyId,...more});
 test('six industries are available',()=>{const w=createWorld();assert.equal(w.companies.length,6);for(const i of INDUSTRIES)assert.ok(w.companies.some(c=>c.industry===i));validate(w)});
 test('six industry contracts complete and receive payment',()=>{for(const industry of INDUSTRIES){let w=createWorld(),c=w.companies.find(x=>x.industry===industry),q=w.market.find(x=>x.companyId===c.id);w=cmd(w,'accept',c.id,{quoteId:q.id});assert.equal(w.contracts[0].status,'working');w=cmd(w,'advance',c.id,{ticks:9});assert.equal(w.contracts[0].status,'paid');assert.equal(w.companies.find(x=>x.id===c.id).receivables,0);validate(w)}});
@@ -19,3 +19,9 @@ test('Ver4.3 ledger and balances reconcile after purchases, contracts and payrol
 test('Ver4.3 cancellation returns reserved inventory and permits next contract',()=>{let w=createWorld(),c=w.companies[0],item='部品セット';const before=c.inventory[item];w=cmd(w,'accept',c.id,{quoteId:w.market[0].id});assert.equal(w.companies[0].inventory[item],before-1);w=cmd(w,'cancelContract',c.id,{contractId:w.contracts[0].id});assert.equal(w.companies[0].inventory[item],before);assert.equal(w.contracts[0].status,'cancelled');w=cmd(w,'newQuote',c.id);w=cmd(w,'accept',c.id,{quoteId:w.market.at(-1).id});validate(w)});
 test('Ver4.3 overdue liabilities can be paid later',()=>{let w=createWorld();w=cmd(w,'advance','C-1',{ticks:30});const due=w.companies[0].payables;assert.equal(due,0);w=cmd(w,'invest','C-1',{amount:100000});validate(w);assert.throws(()=>cmd(w,'payPayables','C-1'),/ありません/)});
 test('Ver4.3 rejects tampered balance',()=>{let w=createWorld();w.companies[0].cash++;assert.throws(()=>validate(w),/帳簿不整合/)});
+
+test('Ver4.4 balance sheet equals liabilities and equity',()=>{let w=createWorld();w=cmd(w,'purchaseCredit','C-1',{quantity:5,terms:15});const r=reports(w,'C-1');assert.equal(r.bs.totalAssets,r.bs.totalLiabilitiesEquity);assert.equal(r.bs.payables,5000);validate(w)});
+test('Ver4.4 supplier bill payment clears liability',()=>{let w=createWorld();w=cmd(w,'purchaseCredit','C-1',{quantity:5});const bill=w.supplierBills[0];w=cmd(w,'payBill','C-1',{billId:bill.id});assert.equal(w.companies[0].payables,0);assert.equal(w.supplierBills[0].status,'paid');validate(w)});
+test('Ver4.4 reserved facility cannot overlap',()=>{let w=createWorld(),id=w.facilities[0].id;w=cmd(w,'reserveResource','C-1',{resourceId:id,from:0,to:7});assert.throws(()=>cmd(w,'reserveResource','C-1',{resourceId:id,from:3,to:8}),/重複/);validate(w)});
+test('Ver4.4 quotation price revision',()=>{let w=createWorld();w=cmd(w,'quoteRevision','C-1',{quoteId:w.market[0].id,price:200000});assert.equal(w.market[0].price,200000);w=cmd(w,'accept','C-1',{quoteId:w.market[0].id});assert.equal(w.contracts[0].price,200000);validate(w)});
+test('Ver4.4 six sectors retain workflows',()=>{for(const industry of INDUSTRIES){let w=createWorld(),c=w.companies.find(c=>c.industry===industry);w=cmd(w,'accept',c.id,{quoteId:w.market.find(q=>q.companyId===c.id).id});assert.equal(w.workflow.at(-1).steps.length,3);w=cmd(w,'advance',c.id,{ticks:10});validate(w)}});
