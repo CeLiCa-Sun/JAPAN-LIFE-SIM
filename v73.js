@@ -1,0 +1,15 @@
+import {createWorld as create72,migrate as migrate72,dispatch as dispatch72,validate as validate72,reports as reports72,INDUSTRIES,NAMES,CITY,specs,route,sectorStages,OPERATIONS} from './v72.js';
+export {INDUSTRIES,NAMES,CITY,specs,route,sectorStages,OPERATIONS};
+const extend=w=>{w.version=34;w.contractStages73??=[];w.qualityReviews73??=[];return w};
+export const createWorld=(seed=42)=>extend(create72(seed));
+export function migrate(raw){if(!raw)throw Error('保存データなし');const x=structuredClone(raw);if(x.version===34)x.version=33;return extend(migrate72(x))}
+export const reports=(w,id)=>({...reports72(w,id),contractStages73:w.contractStages73.filter(x=>x.companyId===id).slice(-12)});
+export function validate(w){validate72({...w,version:33});for(const a of w.contractStages73){if(!w.contracts.some(c=>c.id===a.contractId&&c.companyId===a.companyId))throw Error('工程の契約参照が不正');if(a.nextStep<0||a.nextStep>3)throw Error('工程進捗不正')}return true}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;const cid=cmd.companyId||world.companies[0].id;
+if(cmd.kind==='accept'){const w=extend(dispatch72({...world,version:33},cmd));const ct=w.contracts.find(c=>c.companyId===cid&&c.status==='working');if(ct){ct.requireStages=true;ct.stagesCompleted=false}validate(w);return w}
+if(cmd.kind==='stageWork73'){const c=world.companies.find(c=>c.id===cid);if(!c)throw Error('会社なし');const contract=world.contracts.find(k=>k.companyId===cid&&k.status==='working');if(!contract)throw Error('まず見積を受注してください');const step=cmd.step;if(!Number.isInteger(step)||step<0||step>2)throw Error('工程番号不正');let progress=world.contractStages73.find(p=>p.contractId===contract.id);if(step!==(progress?.nextStep??0))throw Error('前工程の完了が必要');if(progress&&world.tick<progress.nextTick)throw Error('次工程には日数経過が必要');const employees=world.staff.filter(x=>x.companyId===cid),facilityCount=world.facilities.filter(x=>x.companyId===cid).length;if(!employees.length||!facilityCount)throw Error('従業員・施設が必要');const cost=1000+employees.length*120+step*250;if(c.cash<cost)throw Error('工程費用不足');
+const w=extend(structuredClone(world)),firm=w.companies.find(x=>x.id===cid),ct=w.contracts.find(x=>x.id===contract.id);firm.cash-=cost;firm.expenses+=cost;firm.profit-=cost;w.ledger.push({id:'V73J-'+(++w.counter),tick:w.tick,companyId:cid,memo:'受注工程 '+OPERATIONS[c.industry][step],debit:{expense:cost},credit:{cash:cost}});
+let p=w.contractStages73.find(x=>x.contractId===ct.id);if(!p){p={contractId:ct.id,companyId:cid,industry:c.industry,nextStep:0,nextTick:w.tick,status:'working',cost:0,quality:null,finishedTick:null};w.contractStages73.push(p)}p.nextStep=step+1;p.nextTick=w.tick+1;p.cost+=cost;
+if(step===2){const avg=Math.floor(employees.reduce((sum,e)=>sum+(e.skill??50),0)/employees.length);p.quality=Math.min(100,Math.max(0,avg+10));if(p.quality>=50){ct.requireStages=true;ct.stagesCompleted=true;p.status='inspection_passed';p.finishedTick=w.tick}else{p.status='quality_hold';w.qualityReviews73.push({contractId:ct.id,tick:w.tick,quality:p.quality})}}
+w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+const w=extend(dispatch72({...world,version:33},cmd));validate(w);return w}
