@@ -1,0 +1,13 @@
+import {createWorld as oldCreate,migrate as oldMigrate,dispatch as oldDispatch,validate as oldValidate,reports as oldReports,INDUSTRIES,NAMES,CITY,specs,route,sectorStages} from './v56.js';
+export {INDUSTRIES,NAMES,CITY,specs,route,sectorStages};
+const upgrade=w=>{w.version=18;w.transportPlans??=[];w.operationsAudit??=[];w.npcPrices??={};w.personalStatements??=[];return w};
+export const createWorld=(seed=42)=>upgrade(oldCreate(seed));
+export function migrate(raw){if(!raw)throw Error('保存データなし');const r=structuredClone(raw);if(r.version===18)r.version=17;return upgrade(oldMigrate(r))}
+export function reports(w,id){const r=oldReports(w,id);return {...r,transport:w.transportPlans.filter(x=>x.companyId===id),audits:w.operationsAudit.filter(x=>x.companyId===id),personal:w.personalStatements.slice(-12)}}
+export function validate(w){oldValidate({...w,version:17});for(const x of w.transportPlans){if(!Number.isFinite(x.km)||x.km<0)throw Error('輸送距離不正')}return true}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;const cid=cmd.companyId||world.companies[0].id;
+if(cmd.kind==='planDelivery'){const w=upgrade(structuredClone(world)),v=w.cityVehicles.find(v=>v.companyId===cid);if(!v)throw Error('車両なし');const r=route(v.node,cmd.to||'depot');if(!Number.isFinite(r.distance))throw Error('経路なし');w.transportPlans.push({id:'PLAN-'+(++w.counter),companyId:cid,tick:w.tick,from:v.node,to:cmd.to||'depot',km:r.distance,path:r.path});w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='sectorAudit'){const w=upgrade(structuredClone(world)),c=w.companies.find(c=>c.id===cid);if(!c)throw Error('企業なし');const working=w.contracts.filter(k=>k.companyId===cid&&k.status==='working').length;const staff=w.staff.filter(s=>s.companyId===cid).length;const facility=w.facilities.filter(f=>f.companyId===cid).length;w.operationsAudit.push({id:'AUDIT-'+(++w.counter),companyId:cid,tick:w.tick,industry:c.industry,working,staff,facility});w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='npcPricing'){const w=upgrade(structuredClone(world));for(const n of w.npcCompanies){const base=specs[n.industry].price;const funds=w.npcAccounts.find(a=>a.id===n.id)?.cash??0;w.npcPrices[n.id]=Math.max(1,Math.round(base*w.economy.priceIndex/100*(funds<100000?1.1:1)))}w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='personalStatement'){const w=upgrade(structuredClone(world));w.personalStatements.push({tick:w.tick,cash:w.playerCash,savings:w.household.savings,career:w.careerLevel,employer:w.personal.job});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+const w=upgrade(oldDispatch({...world,version:17},cmd));validate(w);return w}
