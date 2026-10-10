@@ -25,3 +25,6 @@ test('Ver4.4 supplier bill payment clears liability',()=>{let w=createWorld();w=
 test('Ver4.4 reserved facility cannot overlap',()=>{let w=createWorld(),id=w.facilities[0].id;w=cmd(w,'reserveResource','C-1',{resourceId:id,from:0,to:7});assert.throws(()=>cmd(w,'reserveResource','C-1',{resourceId:id,from:3,to:8}),/重複/);validate(w)});
 test('Ver4.4 quotation price revision',()=>{let w=createWorld();w=cmd(w,'quoteRevision','C-1',{quoteId:w.market[0].id,price:200000});assert.equal(w.market[0].price,200000);w=cmd(w,'accept','C-1',{quoteId:w.market[0].id});assert.equal(w.contracts[0].price,200000);validate(w)});
 test('Ver4.4 six sectors retain workflows',()=>{for(const industry of INDUSTRIES){let w=createWorld(),c=w.companies.find(c=>c.industry===industry);w=cmd(w,'accept',c.id,{quoteId:w.market.find(q=>q.companyId===c.id).id});assert.equal(w.workflow.at(-1).steps.length,3);w=cmd(w,'advance',c.id,{ticks:10});validate(w)}});
+
+import {encodeSave,decodeSave} from './storage.js';
+test('Ver4.4 checksum detects corruption and old format is readable',()=>{const w=createWorld();assert.equal(decodeSave(encodeSave(w)).version,5);assert.equal(decodeSave(JSON.stringify(w)).version,5);let raw=JSON.parse(encodeSave(w));raw.payload+='tamper';assert.throws(()=>decodeSave(JSON.stringify(raw)),/整合性/)});
