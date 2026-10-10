@@ -1,4 +1,5 @@
-export function drawCity(canvas,world){
+function CITY_POINT(world,id){return (world.districtStructures||[]).find(p=>p.id==='B-'+id)}
+export function drawCity(canvas,world,progress=1){
  const gl=canvas.getContext('webgl',{antialias:true});if(!gl)return false;
  const vert='attribute vec3 p;attribute vec3 color;uniform float spin;varying vec3 v;void main(){float a=spin;vec3 q=vec3(p.x*cos(a)-p.z*sin(a),p.y,p.x*sin(a)+p.z*cos(a));gl_Position=vec4(q.x*.9,q.y*.8+q.z*.22,0.0,1.0);v=color;}';
  const frag='precision mediump float;varying vec3 v;void main(){gl_FragColor=vec4(v,1.0);}';
@@ -8,6 +9,7 @@ export function drawCity(canvas,world){
  function block(x,z,height){const w=.055,h=height/95;const a=[x-w,-.48,z-w],b=[x+w,-.48,z-w],c=[x+w,-.48,z+w],d=[x-w,-.48,z+w],e=[x-w,-.48+h,z-w],f=[x+w,-.48+h,z-w],g=[x+w,-.48+h,z+w],j=[x-w,-.48+h,z+w];rect(a,b,f,e,[.26,.48,.62]);rect(b,c,g,f,[.16,.34,.49]);rect(e,f,g,j,[.47,.72,.76])}
  rect([-1,-.5,-1],[1,-.5,-1],[1,-.5,1],[-1,-.5,1],[.12,.24,.29]);
  for(const s of world.districtStructures||[]){block((s.x-50)/52,(s.y-50)/52,s.height)}
- for(const v of world.cityVehicles||[]){const node=(world.districtStructures||[]).find(p=>p.id==='B-'+v.node);if(node)block((node.x-50)/52+.09,(node.y-50)/52+.09,4)}
+ const pts=world.districtStructures||[];for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],x1=(a.x-50)/52,z1=(a.y-50)/52,x2=(b.x-50)/52,z2=(b.y-50)/52;rect([x1,-.48,z1-.018],[x2,-.48,z2-.018],[x2,-.48,z2+.018],[x1,-.48,z1+.018],[.31,.34,.38])}
+ for(const v of world.cityVehicles||[]){const journey=(world.routeAnimations||[]).filter(j=>j.companyId===v.companyId).at(-1);const stops=journey?.path?.map(id=>CITY_POINT(world,id)).filter(Boolean)||[];let node=(world.districtStructures||[]).find(p=>p.id==='B-'+v.node);if(stops.length>1){const t=Math.min(.99999,Math.max(0,progress))*(stops.length-1),i=Math.floor(t),a=stops[i],b=stops[Math.min(i+1,stops.length-1)];node={x:a.x+(b.x-a.x)*(t-i),y:a.y+(b.y-a.y)*(t-i)}}if(node)block((node.x-50)/52+.09,(node.y-50)/52+.09,4)}
  gl.useProgram(program);const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(verts),gl.STATIC_DRAW);const position=gl.getAttribLocation(program,'p');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,3,gl.FLOAT,false,0,0);const cb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,cb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(colors),gl.STATIC_DRAW);const color=gl.getAttribLocation(program,'color');gl.enableVertexAttribArray(color);gl.vertexAttribPointer(color,3,gl.FLOAT,false,0,0);gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(.045,.09,.13,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.uniform1f(gl.getUniformLocation(program,'spin'),(world.camera?.x||0)/140);gl.drawArrays(gl.TRIANGLES,0,verts.length/3);return true;
 }
