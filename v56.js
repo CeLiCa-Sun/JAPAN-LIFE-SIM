@@ -1,0 +1,13 @@
+import {createWorld as create55,migrate as migrate55,dispatch as dispatch55,validate as validate55,reports as reports55,INDUSTRIES,NAMES,CITY,specs,route,sectorStages} from './v55.js';
+export {INDUSTRIES,NAMES,CITY,specs,route,sectorStages};
+const ext=w=>{w.version=17;w.npcAutonomy??=[];w.sectorQuality??=[];w.householdSavingsHistory??=[];w.performance??=[];return w};
+export const createWorld=(seed=42)=>ext(create55(seed));
+export function migrate(raw){if(!raw)throw Error('セーブデータがありません');const c=structuredClone(raw);if(c.version===17)c.version=16;return ext(migrate55(c))}
+export const reports=(w,id)=>({...reports55(w,id),quality:w.sectorQuality.filter(x=>x.companyId===id).slice(-10),autonomy:w.npcAutonomy.slice(-12)});
+export function validate(w){validate55({...w,version:16});for(const n of w.npcAutonomy)if(!Number.isSafeInteger(n.spend)||n.spend<0)throw Error('NPC資金不正');return true}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;const cid=cmd.companyId||world.companies[0].id;
+if(cmd.kind==='npcAutonomousWeek'){const w=ext(structuredClone(world));for(const acc of w.npcAccounts){const investment=Math.min(acc.cash,Math.max(0,Math.floor(acc.cash*.01)));acc.cash-=investment;acc.inventory+=investment;acc.expenses+=investment;const npc=w.npcCompanies.find(n=>n.id===acc.id);npc.capital=acc.cash;w.npcAutonomy.push({id:'AUTO-'+(++w.counter),tick:w.tick,npcId:acc.id,spend:investment,activity:'procurement'});}w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='inspectQuality'){const w=ext(structuredClone(world));const c=w.companies.find(c=>c.id===cid),run=w.operationRuns.find(r=>r.companyId===cid&&r.status==='running');if(!c||!run)throw Error('検査可能な業務なし');const skills=w.staff.filter(e=>e.companyId===cid).map(e=>e.skill||0);const score=Math.max(0,Math.min(100,60+Math.round((Math.max(0,...skills))/4)));w.sectorQuality.push({id:'QUALITY-'+(++w.counter),companyId:cid,contractId:run.contractId,score,tick:w.tick});w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='savingsReport'){const w=ext(structuredClone(world));w.householdSavingsHistory.push({tick:w.tick,cash:w.playerCash,savings:w.household.savings,total:w.playerCash+w.household.savings});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='fiveYearTest'){const years=cmd.years??1;if(!Number.isSafeInteger(years)||years<1||years>5)throw Error('年数は1〜5年');let w=world;for(let i=0;i<years;i++)w=dispatch55({...w,version:16},{id:cmd.id+'-year-'+i,kind:'yearAdvance',companyId:cid,days:365});w=ext(w);w.performance.push({tick:w.tick,years,companies:w.companies.length});w.commands[cmd.id]=true;validate(w);return w}
+const w=ext(dispatch55({...world,version:16},cmd));validate(w);return w}
