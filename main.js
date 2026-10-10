@@ -1,25 +1,35 @@
-import {createWorld,dispatch,INDUSTRIES,NAMES,stableHash,validate} from './sim.js';
+import {createWorld,dispatch,INDUSTRIES,NAMES,CITY,validate,specs,migrate} from './v42.js';
 import {save,load,recoverBackup} from './storage.js';
-let world=createWorld(),selected='automotive',serial=0,speed=1;
-const root=document.getElementById('app');
-const yen=n=>'¥'+n.toLocaleString('ja-JP');
+let world=createWorld(),selected='C-1',tab='operations',speed=1,serial=0;
+const root=document.getElementById('app'),yen=x=>'¥'+Number(x||0).toLocaleString('ja-JP'),escape=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const nextId=()=>{serial++;return 'V42UI-'+Date.now()+'-'+serial};
+function run(kind,extra={}){const c=world.companies.find(x=>x.id===selected)||world.companies[0];world=dispatch(world,{id:nextId(),companyId:c.id,kind,...extra});render()}
+const buttons=[['operations','業務'],['market','契約・市場'],['people','従業員'],['finance','財務'],['city','都市・施設'],['personal','個人・就職'],['history','履歴・保存']];
+function action(label,kind,extra={}){return '<button data-act="'+kind+'" data-extra="'+encodeURIComponent(JSON.stringify(extra))+'">'+escape(label)+'</button>'}
 function render(){
- const c=world.companies.find(x=>x.industry===selected);
- const job=world.jobs.find(x=>x.companyId===c.id&&x.status==='running');
- root.innerHTML=`<header><h1>経済人生シミュレーター <small>Ver.4.1 α</small></h1><div>ゲーム内 ${world.tick}日目・個人資金 ${yen(world.playerCash)}・Hash ${stableHash(world)}</div></header>
- <nav>${INDUSTRIES.map(i=>`<button data-industry="${i}" class="${i===selected?'active':''}">${NAMES[i]}</button>`).join('')}</nav>
- <main><section class="stats"><article><h2>${c.name}</h2><p>法人現預金 <strong>${yen(c.cash)}</strong></p><p>累積収支（簡易） ${yen(c.profit)}</p><p>完了した仕事 ${c.completed}件</p></article><article><h2>業務</h2><p>${job?job.label+'：残り'+job.remaining+'日':'着手可能'}</p><p>在庫 ${Object.entries(c.inventory).map(([k,v])=>k+' '+v).join(' / ')}</p><p>記録資産 ${Object.entries(c.assets).map(([k,v])=>k+' '+v).join(' / ')||'なし'}</p></article></section>
- <section><h2>経営操作</h2><div class="buttons"><button id="job">仕事を受注・開始</button><button id="buy">素材・部品を5個仕入れる</button><button id="invest">個人から10万円出資</button></div><h2>時間</h2><div class="buttons"><button id="next">1日進める</button><button id="week">7日進める</button><label>倍率 <select id="speed">${[1,5,20,100].map(n=>`<option value="${n}" ${n===speed?'selected':''}>×${n}</option>`).join('')}</select></label><button id="run">指定倍率で進める</button></div><h2>保存</h2><div class="buttons"><button id="save">保存</button><button id="load">読込</button><button id="recover">前回バックアップ</button><button id="reset">新規ワールド</button></div></section>
- <section><h2>直近イベント</h2><div class="scroll">${world.events.slice(-18).reverse().map(e=>`<p><small>${e.tick}日目・${e.type}</small> ${e.detail}</p>`).join('')||'<p>まだイベントはありません。</p>'}</div></section><section><h2>会計・仕訳</h2><p>総仕訳数 ${world.ledger.length}件。貸借一致 ${validate(world)?'確認済み':'不一致'}</p><div class="scroll">${world.ledger.filter(j=>j.companyId===c.id).slice(-6).reverse().map(j=>`<p><small>${j.tick}日目</small> ${j.memo}</p>`).join('')}</div></section></main><footer>6業種共通基盤の試作です。全国地図・詳細契約・詳細物理等は未実装です。</footer>`;
- root.querySelectorAll('[data-industry]').forEach(b=>b.onclick=()=>{selected=b.dataset.industry;render()});
- const act=(id,fn)=>{root.querySelector('#'+id).onclick=async()=>{try{await fn();render()}catch(e){alert(e.message||String(e))}}};
- const send=(kind,extra={})=>{world=dispatch(world,{id:'UI-'+(++serial),kind,companyId:c.id,...extra})};
- act('job',()=>send('start'));act('buy',()=>send('purchase',{quantity:5}));act('invest',()=>send('invest',{amount:100000}));
- act('next',()=>send('advance',{ticks:1}));act('week',()=>send('advance',{ticks:7}));act('run',()=>send('advance',{ticks:speed}));
- act('save',async()=>{await save(world);alert('保存しました')});
- act('load',async()=>{const w=await load();if(!w)throw Error('保存データがありません');validate(w);world=w;serial=Object.keys(world.commands).length});
- act('recover',async()=>{const w=await recoverBackup();if(!w)throw Error('バックアップがありません');validate(w);world=w;serial=Object.keys(world.commands).length});
- act('reset',()=>{if(confirm('ゲームを初期化しますか？')){world=createWorld();serial=0}});
+ const c=world.companies.find(x=>x.id===selected)||world.companies[0];selected=c.id;
+ const active=world.contracts.find(x=>x.companyId===c.id&&x.status==='working');
+ const due=world.market.filter(x=>x.companyId===c.id&&x.status==='open');
+ const employees=world.staff.filter(x=>x.companyId===c.id);
+ let body='';
+ if(tab==='operations')body='<div class="cards"><article><h2>業務進行</h2><p>'+(active?escape(active.product)+'：'+Math.max(0,active.dueTick-world.tick)+'日後完了':'作業待機中')+'</p><p>事業内容：'+escape(specs[c.industry].product)+'</p><p>使用材料：'+escape(specs[c.industry].material)+' ／必要数 '+specs[c.industry].materials+'</p><div class="buttons">'+action('NPC案件を受注', 'accept',{quoteId:due[0]?.id})+action('材料を5個仕入','purchase',{quantity:5})+action('10万円を追加出資','invest',{amount:100000})+'</div><p class="muted">受注→作業日数経過→売掛金計上→2日後に入金</p></article><article><h2>設備・車両・在庫</h2><p>在庫：'+Object.entries(c.inventory).map(([k,v])=>escape(k)+' '+v+'個').join('、')+'</p><p>車両保有目安：'+c.fleet+'台</p><p>完了案件：'+c.completed+'件</p><p>拠点：'+escape(CITY.find(x=>x.id===c.location)?.name||'中央駅')+'</p></article></div>';
+ if(tab==='market')body='<div class="cards"><article><h2>NPC見積依頼</h2>'+due.map(q=>'<div class="item"><b>'+escape(q.product)+'</b><div>'+escape(q.buyer)+'・予定代金 '+yen(q.price)+'</div>'+action('この依頼を受注','accept',{quoteId:q.id})+'</div>').join('')+action('新しい依頼を探す','newQuote')+'</article><article><h2>契約・請求・支払</h2>'+world.contracts.filter(x=>x.companyId===c.id).slice(-12).reverse().map(k=>'<div class="item">'+escape(k.product)+'：'+escape({working:'作業中',delivered:'納品・請求済',paid:'入金済'}[k.status]||k.status)+'<div>'+yen(k.price)+'</div></div>').join('')+'</article></div>';
+ if(tab==='people')body='<div class="cards"><article><h2>採用・教育</h2><p>従業員：'+employees.length+'名</p><div class="buttons">'+action('社員を採用','hire')+action('社員を研修','train')+'</div><p>30日ごとに給与と固定費が発生します。</p></article><article><h2>社員名簿</h2>'+employees.map(e=>'<div class="item">'+escape(e.name)+'・技能 '+e.skill+'・給与 '+yen(e.salary)+'/30日</div>').join('')+'</article></div>';
+ if(tab==='finance')body='<div class="cards"><article><h2>企業財務</h2><p>現預金 <strong>'+yen(c.cash)+'</strong></p><p>売掛金 '+yen(c.receivables)+'</p><p>売上 '+yen(c.revenue)+' ／費用 '+yen(c.expenses)+'</p><p>累積損益 '+yen(c.profit)+'</p><p>資本金 '+yen(c.equity)+'</p></article><article><h2>複式仕訳</h2><div class="scroll">'+world.ledger.filter(x=>x.companyId===c.id).slice(-14).reverse().map(x=>'<div class="item">'+escape(x.memo)+'</div>').join('')+'</div></article></div>';
+ if(tab==='city')body='<div class="cards"><article><h2>小規模都市・施設</h2><div class="citymap">'+CITY.map(p=>'<span class="pin" style="left:'+p.x+'%;top:'+p.y+'%" title="'+escape(p.name)+'">●<small>'+escape(p.name)+'</small></span>').join('')+'</div><p class="muted">架空の試験都市。道路経路・実際の走行計算は今後実装。</p></article><article><h2>事業拠点</h2>'+world.facilities.map(x=>'<div class="item">'+escape(world.companies.find(c=>c.id===x.companyId)?.name)+' ：'+escape(CITY.find(p=>p.id===x.location)?.name||x.location)+'</div>').join('')+'</article></div>';
+ if(tab==='personal')body='<div class="cards"><article><h2>個人生活</h2><p>個人資金 <strong>'+yen(world.playerCash)+'</strong></p><p>家賃：'+yen(world.personal.monthlyRent)+'/30日</p><p>職歴：'+world.personal.careerDays+'日 ／ 経験 '+world.personal.experience+'</p><p>勤務先：'+escape(world.companies.find(x=>x.id===world.personal.job)?.name||'無職')+'</p><div class="buttons">'+action('選択企業に就職','work')+action('退職','resign')+action('安い家に転居','rent',{amount:45000})+'</div></article><article><h2>起業・複数会社</h2><p>25万円の個人資金で新規企業を設立。全6業種から選択できます。</p><select id="found-type">'+INDUSTRIES.map(x=>'<option value="'+x+'">'+NAMES[x]+'</option>').join('')+'</select><button id="found">この業種で開業</button></article></div>';
+ if(tab==='history')body='<div class="cards"><article><h2>直近イベント</h2><div class="scroll">'+world.events.slice(-30).reverse().map(e=>'<div class="item"><small>'+e.tick+'日目・'+escape(e.type)+'</small><div>'+escape(e.detail)+'</div></div>').join('')+'</div></article><article><h2>セーブ管理</h2><div class="buttons"><button id="save">保存</button><button id="load">読込</button><button id="restore">バックアップから復旧</button><button id="reset">新しいゲーム</button></div><p>Ver.4.1の保存データは読込時に移行します。</p></article></div>';
+ root.innerHTML='<header><div class="top"><div><h1>JAPAN-LIFE-SIM <span>Ver.4.2 α</span></h1><p>日本経済・人生・企業経営シミュレーター</p></div><div class="time">ゲーム内 '+world.tick+'日目 <div class="buttons">'+action('＋1日','advance',{ticks:1})+action('＋7日','advance',{ticks:7})+'<button id="fast">＋'+speed+'日</button><select id="speed">'+[1,5,20,100].map(x=>'<option value="'+x+'" '+(speed===x?'selected':'')+'>×'+x+'</option>').join('')+'</select></div></div></div></header><div class="layout"><aside><h2>運営会社</h2><select id="company">'+world.companies.map(x=>'<option value="'+escape(x.id)+'" '+(x.id===c.id?'selected':'')+'>'+escape(x.name)+'</option>').join('')+'</select><div class="menu">'+buttons.map(([key,text])=>'<button class="'+(tab===key?'active':'')+'" data-tab="'+key+'">'+text+'</button>').join('')+'</div></aside><div class="content"><div class="kpis"><div><small>法人現預金</small><strong>'+yen(c.cash)+'</strong></div><div><small>売掛金</small><strong>'+yen(c.receivables)+'</strong></div><div><small>累積損益</small><strong>'+yen(c.profit)+'</strong></div><div><small>完了業務</small><strong>'+c.completed+'件</strong></div></div><h2>'+escape(buttons.find(x=>x[0]===tab)[1])+'</h2>'+body+'</div></div><footer>Ver.4.2の試作。高度車両物理・全国実データ・精密な法令税務は未実装です。</footer>';
+ root.querySelector('#company').onchange=e=>{selected=e.target.value;render()};
+ root.querySelectorAll('[data-tab]').forEach(x=>x.onclick=()=>{tab=x.dataset.tab;render()});
+ root.querySelectorAll('[data-act]').forEach(x=>x.onclick=()=>{try{run(x.dataset.act,JSON.parse(decodeURIComponent(x.dataset.extra)))}catch(e){alert(e.message)}});
  root.querySelector('#speed').onchange=e=>speed=Number(e.target.value);
+ root.querySelector('#fast').onclick=()=>{try{run('advance',{ticks:speed})}catch(e){alert(e.message)}};
+ const b=id=>root.querySelector('#'+id);
+ if(b('found'))b('found').onclick=()=>{try{run('createCompany',{industry:b('found-type').value});selected=world.companies.at(-1).id;render()}catch(e){alert(e.message)}};
+ if(b('save'))b('save').onclick=async()=>{try{await save(world);alert('保存しました')}catch(e){alert(e.message)}};
+ if(b('load'))b('load').onclick=async()=>{try{world=migrate(await load());validate(world);render()}catch(e){alert(e.message)}};
+ if(b('restore'))b('restore').onclick=async()=>{try{world=migrate(await recoverBackup());validate(world);render()}catch(e){alert(e.message)}};
+ if(b('reset'))b('reset').onclick=()=>{if(confirm('新規ゲームを開始しますか？')){world=createWorld();selected='C-1';render()}};
 }
 render();
