@@ -27,7 +27,7 @@ test('Ver4.4 quotation price revision',()=>{let w=createWorld();w=cmd(w,'quoteRe
 test('Ver4.4 six sectors retain workflows',()=>{for(const industry of INDUSTRIES){let w=createWorld(),c=w.companies.find(c=>c.industry===industry);w=cmd(w,'accept',c.id,{quoteId:w.market.find(q=>q.companyId===c.id).id});assert.equal(w.workflow.at(-1).steps.length,3);w=cmd(w,'advance',c.id,{ticks:10});validate(w)}});
 
 import {encodeSave,decodeSave} from './storage.js';
-test('Ver4.4 checksum detects corruption and old format is readable',()=>{const w=createWorld();assert.equal(decodeSave(encodeSave(w)).version,22);assert.equal(decodeSave(JSON.stringify(w)).version,21);let raw=JSON.parse(encodeSave(w));raw.payload+='tamper';assert.throws(()=>decodeSave(JSON.stringify(raw)),/整合性/)});
+test('Ver4.4 checksum detects corruption and old format is readable',()=>{const w=createWorld();assert.equal(decodeSave(encodeSave(w)).version,22);assert.equal(decodeSave(JSON.stringify(w)).version,22);let raw=JSON.parse(encodeSave(w));raw.payload+='tamper';assert.throws(()=>decodeSave(JSON.stringify(raw)),/整合性/)});
 
 test('Ver4.5 bank financing keeps financial statements balanced',()=>{let w=createWorld();w=cmd(w,'borrow','C-1',{amount:100000});assert.equal(reports(w,'C-1').bs.loans,100000);w=cmd(w,'repayLoan','C-1',{loanId:w.loanBooks[0].id,amount:30000});assert.equal(reports(w,'C-1').bs.loans,70000);validate(w)});
 test('Ver4.5 connected city routing and cost posting',()=>{const r=route('city','depot');assert.ok(r.distance>0&&r.path.length>1);let w=createWorld();w=cmd(w,'transport','C-1',{from:'city',to:'depot'});assert.equal(w.transports.length,1);validate(w)});
@@ -102,7 +102,7 @@ test('Ver5.9 six sectors and housing survive migration',()=>{let w=createWorld()
 
 test('Ver6.0 monthly rent is charged exactly once',()=>{let w=createWorld();w=cmd(w,'setRent','C-1',{rent:50000});const before=w.playerCash;w=cmd(w,'payRent','C-1');assert.equal(w.playerCash,before-50000);assert.throws(()=>cmd(w,'payRent','C-1'),/支払済み/);validate(w)});
 test('Ver6.0 autonomous NPC cycles conserve total cash',()=>{let w=createWorld();w=cmd(w,'npcTrade','C-1');const total=w.npcAccounts.reduce((s,a)=>s+a.cash,0);w=cmd(w,'npcMarketCycle','C-1');assert.ok(w.npcMarketCycles.length>0);assert.equal(w.npcAccounts.reduce((s,a)=>s+a.cash,0),total);validate(w)});
-test('Ver6.0 six industries KPI and save migration',()=>{let w=createWorld();for(const c of w.companies)w=cmd(w,'sectorKpi',c.id);assert.equal(Object.keys(w.sectorKpis).length,6);const copy=migrate(w);assert.equal(copy.version,21);validate(copy)});
+test('Ver6.0 six industries KPI and save migration',()=>{let w=createWorld();for(const c of w.companies)w=cmd(w,'sectorKpi',c.id);assert.equal(Object.keys(w.sectorKpis).length,6);const copy=migrate(w);assert.equal(copy.version,22);validate(copy)});
 
 test('Ver6.1 road trip and NPC market strategy',()=>{let w=createWorld();w=cmd(w,'roadTrip','C-1',{to:'depot'});assert.ok(w.roadJourneys.length===1);w=cmd(w,'npcTrade','C-1');w=cmd(w,'npcStrategyCycle','C-1');assert.equal(w.npcStrategy.length,6);validate(w)});
 test('Ver6.1 six industry snapshots and housing history',()=>{let w=createWorld();for(const c of w.companies)w=cmd(w,'sectorSnapshot',c.id);w=cmd(w,'housingStatement','C-1');assert.equal(w.sectorChecks.length,6);assert.equal(w.housingHistory.length,1);assert.equal(migrate(w).version,22)});
