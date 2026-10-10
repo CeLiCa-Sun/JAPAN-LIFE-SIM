@@ -1,0 +1,5 @@
+const DB='keizai-sim-v41';
+function open(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore('saves');r.onerror=()=>reject(r.error);r.onsuccess=()=>resolve(r.result);});}
+export async function save(w){const db=await open();try{await new Promise((resolve,reject)=>{const tx=db.transaction('saves','readwrite');const store=tx.objectStore('saves');const old=store.get('current');old.onsuccess=()=>{if(old.result)store.put(old.result,'backup');store.put(JSON.stringify(w),'current');};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}finally{db.close();}}
+async function read(key){const db=await open();try{const str=await new Promise((resolve,reject)=>{const r=db.transaction('saves','readonly').objectStore('saves').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});return str?JSON.parse(str):null;}finally{db.close();}}
+export const load=()=>read('current');export const recoverBackup=()=>read('backup');
