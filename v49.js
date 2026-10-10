@@ -13,4 +13,4 @@ else if(cmd.kind==='recordTrip'){const vehicle=w.vehicleAssets.find(v=>v.company
 else if(cmd.kind==='personalSavings'){const amount=cmd.amount??10000;if(!Number.isSafeInteger(amount)||amount<=0||w.playerCash<amount)throw Error('貯蓄可能額を超過');w.playerCash-=amount;w.household.savings+=amount;w.lifeHistory.push({tick:w.tick,kind:'savings',amount});}
 else if(cmd.kind==='industryCheck'){const active=w.contracts.filter(x=>x.companyId===c.id&&x.status==='working').length;const st=w.sectorStats[c.id]||{runs:0};st.runs++;st.lastIndustry=c.industry;st.activeOrders=active;st.staffCount=w.staff.filter(x=>x.companyId===c.id).length;st.facilityCount=w.facilities.filter(x=>x.companyId===c.id).length;w.sectorStats[c.id]=st;}
 else if(cmd.kind==='simulateQuarter'){const days=cmd.days??90;if(!Number.isSafeInteger(days)||days<1||days>90)throw Error('一度に進められるのは90日まで');const next=extend(dispatch48({...w,version:9},{...cmd,kind:'advance',ticks:days}));next.runtimeWarnings.push({tick:next.tick,detail:days+'日間の一括進行を実施'});validate(next);return next;}
-w.commands[cmd.id]=true;validate(w);return w}
+w.commands[cmd.id]=true;w.counter++;validate(w);return w}
