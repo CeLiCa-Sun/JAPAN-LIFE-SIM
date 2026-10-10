@@ -1,0 +1,14 @@
+import {createWorld as baseCreate,migrate as baseMigrate,dispatch as baseDispatch,validate as baseValidate,reports as baseReports,INDUSTRIES,NAMES,CITY,specs,route,sectorStages} from './v63.js';
+export {INDUSTRIES,NAMES,CITY,specs,route,sectorStages};
+const upgrade=w=>{w.version=25;w.sectorUnitEconomics??=[];w.npcOperatingRounds??=[];w.companyReconciliations??=[];w.familyBudgetReviews??=[];w.healthChecks??=[];return w};
+export const createWorld=(seed=42)=>upgrade(baseCreate(seed));
+export function migrate(raw){if(!raw)throw Error('セーブデータなし');const x=structuredClone(raw);if(x.version===25)x.version=24;return upgrade(baseMigrate(x))}
+export const reports=(w,id)=>({...baseReports(w,id),unitEconomics:w.sectorUnitEconomics.filter(x=>x.companyId===id).slice(-10),reconciliations:w.companyReconciliations.filter(x=>x.companyId===id).slice(-10)});
+export function validate(w){baseValidate({...w,version:24});for(const x of w.npcOperatingRounds)if(!Number.isSafeInteger(x.cashTotal)||x.cashTotal<0)throw Error('NPC現金不正');return true}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;const cid=cmd.companyId||world.companies[0].id;
+if(cmd.kind==='sectorUnitEconomics'){const w=upgrade(structuredClone(world)),c=w.companies.find(x=>x.id===cid);if(!c)throw Error('企業なし');const jobs=w.contracts.filter(x=>x.companyId===cid);const cost=w.stageExpenses.filter(x=>x.companyId===cid).reduce((a,x)=>a+x.amount,0);w.sectorUnitEconomics.push({tick:w.tick,companyId:cid,industry:c.industry,orders:jobs.length,stageCost:cost,cash:c.cash,profit:c.profit});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='npcOperatingRound'){const w=upgrade(baseDispatch({...world,version:24},{...cmd,kind:'npcBusinessRound'}));w.npcOperatingRounds.push({tick:w.tick,cashTotal:w.npcAccounts.reduce((a,x)=>a+x.cash,0),inventoryTotal:w.npcAccounts.reduce((a,x)=>a+x.inventory,0)});validate(w);return w}
+if(cmd.kind==='companyReconcile'){const w=upgrade(structuredClone(world)),c=w.companies.find(x=>x.id===cid);if(!c)throw Error('企業なし');const book=reports(w,cid).bs;w.companyReconciliations.push({tick:w.tick,companyId:cid,assets:book.totalAssets,liabilitiesEquity:book.totalLiabilitiesEquity,difference:book.totalAssets-book.totalLiabilitiesEquity});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='familyBudgetReview'){const w=upgrade(structuredClone(world));w.familyBudgetReviews.push({tick:w.tick,rent:w.housing.rent,cash:w.playerCash,savings:w.household.savings,career:w.careerLevel});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='healthCheck'){const w=upgrade(structuredClone(world));w.healthChecks.push({tick:w.tick,companies:w.companies.length,npc:w.npcAccounts.length,schema:w.version});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+const w=upgrade(baseDispatch({...world,version:24},cmd));validate(w);return w}
