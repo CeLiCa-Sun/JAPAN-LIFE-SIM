@@ -1,4 +1,4 @@
-name: Ver 5.4 Tests
+name: Ver 5.5 Tests
 on:
   push:
     branches: [main]
@@ -30,6 +30,8 @@ jobs:
           node --check v52.js
           node --check v53.js
           node --check v54.js
+          node --check v55.js
+          node --check city3d.js
           node --check main.js
           node --check storage.js
       - name: Node unit and integration tests
