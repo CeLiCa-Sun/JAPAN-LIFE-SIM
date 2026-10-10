@@ -6,10 +6,10 @@ export function migrate(raw){if(!raw)throw Error('セーブデータなし');let
 function firm(w,id){const c=w.companies.find(x=>x.id===id);if(!c)throw Error('企業が存在しません');return c}
 function journal(w,c,memo,debit,credit){const sum=x=>Object.values(x).reduce((a,b)=>a+b,0);if(sum(debit)!==sum(credit))throw Error('仕訳不一致');w.ledger.push({id:'V48J-'+(++w.counter),tick:w.tick,companyId:c.id,memo,debit,credit})}
 export function reports(w,id){const old=previousReports(w,id),c=firm(w,id);return {...old,risk:{cashShortfall:c.cash<old.forecast.payroll30+old.forecast.scheduledBills,overdueBills:w.supplierBills.filter(x=>x.companyId===id&&x.status==='open'&&x.dueTick<w.tick).length},sectorStages:sectorStages[c.industry],taxes:w.taxes.filter(x=>x.companyId===id)}}
-export function validate(w){previousValidate(w);for(const t of w.taxes){if(!Number.isSafeInteger(t.amount)||t.amount<0)throw Error('税額の不正')}for(const e of w.assetMaintenance){if(!Number.isSafeInteger(e.cost)||e.cost<0)throw Error('設備費の不正')}return true}
+export function validate(w){previousValidate({...w,version:8});for(const t of w.taxes){if(!Number.isSafeInteger(t.amount)||t.amount<0)throw Error('税額の不正')}for(const e of w.assetMaintenance){if(!Number.isSafeInteger(e.cost)||e.cost<0)throw Error('設備費の不正')}return true}
 export function dispatch(state,cmd){if(state.commands[cmd.id])return state;
 const standard=!['assessTax','payTax','npcInvest','equipmentMaintenance','careerPromotion','declareInsolvency'].includes(cmd.kind);
-if(standard){const w=enrich(previousDispatch(state,cmd));validate(w);return w}
+if(standard){const w=enrich(previousDispatch({...state,version:8},cmd));validate(w);return w}
 const w=enrich(structuredClone(state)),c=firm(w,cmd.companyId||w.companies[0].id);
 if(cmd.kind==='assessTax'){const already=w.taxes.some(t=>t.companyId===c.id&&t.period===Math.floor(w.tick/30));if(already)throw Error('この期間は課税済み');const amount=Math.max(0,Math.floor(c.profit*0.08));w.taxes.push({id:'TAX-'+(++w.counter),companyId:c.id,period:Math.floor(w.tick/30),amount,status:'due',dueTick:w.tick+15});if(amount){c.expenses+=amount;c.profit-=amount;c.payables+=amount;journal(w,c,'簡易税額の計上',{expense:amount},{payable:amount})}}
 else if(cmd.kind==='payTax'){const t=w.taxes.find(t=>t.id===cmd.taxId&&t.companyId===c.id&&t.status==='due');if(!t)throw Error('対象税額なし');if(c.cash<t.amount)throw Error('納税資金不足');c.cash-=t.amount;c.payables-=t.amount;t.status='paid';t.paidAt=w.tick;if(t.amount)journal(w,c,'簡易納税',{payable:t.amount},{cash:t.amount})}
