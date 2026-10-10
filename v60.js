@@ -1,0 +1,12 @@
+import {createWorld as make,migrate as migrate59,dispatch as dispatch59,validate as validate59,reports as reports59,INDUSTRIES,NAMES,CITY,specs,route,sectorStages} from './v59.js';
+export {INDUSTRIES,NAMES,CITY,specs,route,sectorStages};
+function ext(w){w.version=21;w.rentPayments??=[];w.npcMarketCycles??=[];w.sectorKpis??={};w.loanSchedules??=[];return w}
+export const createWorld=(seed=42)=>ext(make(seed));
+export function migrate(raw){if(!raw)throw Error('保存データなし');const w=structuredClone(raw);if(w.version===21)w.version=20;return ext(migrate59(w))}
+export function reports(w,id){return {...reports59(w,id),sectorKpi:w.sectorKpis[id]||null,rentPaid:w.rentPayments.reduce((s,p)=>s+p.amount,0)}}
+export function validate(w){validate59({...w,version:20});for(const p of w.rentPayments)if(!Number.isSafeInteger(p.amount)||p.amount<0)throw Error('家賃の不正');return true}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;const cid=cmd.companyId||world.companies[0].id;
+if(cmd.kind==='payRent'){const w=ext(structuredClone(world)),rent=w.housing.rent;if(!Number.isSafeInteger(rent)||rent<=0||w.playerCash<rent)throw Error('家賃支払不能');const period=Math.floor(w.tick/30);if(w.rentPayments.some(p=>p.period===period))throw Error('当月の家賃支払済み');w.playerCash-=rent;w.rentPayments.push({period,tick:w.tick,amount:rent});w.lifeHistory.push({tick:w.tick,kind:'rent',amount:rent});w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='npcMarketCycle'){let w=ext(structuredClone(world));for(let i=0;i<w.npcAccounts.length;i++){const seller=w.npcAccounts[i],buyer=w.npcAccounts[(i+1)%w.npcAccounts.length],amount=Math.min(750,seller.inventory,buyer.cash);if(amount<1)continue;w=ext(dispatch59({...w,version:20},{id:cmd.id+'-npc-'+i,kind:'npcSellInventory',seller:seller.id,buyer:buyer.id,amount}));w.npcMarketCycles.push({tick:w.tick,seller:seller.id,buyer:buyer.id,amount})}w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='sectorKpi'){const w=ext(structuredClone(world)),c=w.companies.find(c=>c.id===cid);if(!c)throw Error('企業なし');const jobs=w.contracts.filter(k=>k.companyId===cid);w.sectorKpis[cid]={industry:c.industry,active:jobs.filter(j=>j.status==='working').length,completed:jobs.filter(j=>['paid','delivered'].includes(j.status)).length,staff:w.staff.filter(s=>s.companyId===cid).length,facilities:w.facilities.filter(f=>f.companyId===cid).length,tick:w.tick};w.counter++;w.commands[cmd.id]=true;validate(w);return w}
+const w=ext(dispatch59({...world,version:20},cmd));validate(w);return w}
