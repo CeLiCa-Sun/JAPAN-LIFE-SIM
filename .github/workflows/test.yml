@@ -1,4 +1,4 @@
-name: Ver 4.9 Tests
+name: Ver 5.0 Tests
 on:
   push:
     branches: [main]
@@ -25,6 +25,7 @@ jobs:
           node --check v47.js
           node --check v48.js
           node --check v49.js
+          node --check v50.js
           node --check main.js
           node --check storage.js
       - name: Node unit and integration tests
