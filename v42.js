@@ -29,6 +29,7 @@ export function migrate(old){if(!old)throw Error('セーブデータなし');if(
 function upgrade(w){w.version=4;for(const c of w.companies){c.inventoryValue=c.inventoryValue??0;c.payables=c.payables??0;c.unpaidPayroll=c.unpaidPayroll??0;}for(const ct of w.contracts){ct.materialCost=ct.materialCost??0;ct.invoiceId=ct.invoiceId??(ct.status==='working'?null:'INV-'+ct.id)}return w}
 function settle(w,c,contract){
  if(contract.status!=='working')return false;
+ if(contract.requireStages&&!contract.stagesCompleted){event(w,'work.awaiting_inspection',c.id,'最終工程の完了待ち');return false;}
  const s=descriptions[c.industry],cost=s.cost,price=contract.price,materials=contract.materialCost||0;
  if(c.cash<cost){event(w,'work.blocked',c.id,'費用不足により作業保留');return false}
  c.cash-=cost;c.inventoryValue-=materials;c.expenses+=cost+materials;c.revenue+=price;c.receivables+=price;c.profit+=price-cost-materials;
