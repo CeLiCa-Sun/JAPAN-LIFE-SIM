@@ -1,4 +1,4 @@
-name: Ver 6.6 Tests
+name: Ver 6.7 Tests
 on:
   push:
     branches: [main]
@@ -42,6 +42,7 @@ jobs:
           node --check v64.js
           node --check v65.js
           node --check v66.js
+          node --check v67.js
           node --check city3d.js
           node --check main.js
           node --check storage.js
