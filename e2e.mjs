@@ -8,8 +8,9 @@ if(await page.locator('[data-tab="v68"]').count())throw Error('Legacy tabs must 
 for(let i=0;i<6;i++){
   await page.locator('#company').selectOption({index:i});
   await page.locator('[data-tab="industry"]').click();
-  await page.locator('[data-act="stageWork72"]').first().click();
-  if(await page.locator('[data-act="stageWork72"]').count()!==3)throw Error('業種ごとの3工程が表示されていません');
+  await page.getByRole('button',{name:'見積を受注'}).click();
+  await page.locator('[data-act="stageWork73"]').first().click();
+  if(await page.locator('[data-act="stageWork73"]').count()!==3)throw Error('業種ごとの3工程が表示されていません');
 }
 await page.getByRole('button',{name:'法人資金の確認'}).click();
 await page.getByRole('button',{name:'NPC経済サイクル'}).click();
