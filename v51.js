@@ -1,0 +1,17 @@
+import {createWorld as create50,migrate as migrate50,dispatch as dispatch50,validate as validate50,reports as reports50,INDUSTRIES,NAMES,CITY,specs,route,sectorStages} from './v50.js';
+export {INDUSTRIES,NAMES,CITY,specs,route,sectorStages};
+const activities={automotive:['部品供給','組立工程','完成検査'],rental:['予約受付','車両引渡','返却確認'],repair:['点検入庫','部品交換','完成検査'],bus:['乗務割当','運行','入庫点検'],manufacturing:['加工準備','加工','検品'],logistics:['配送受付','集荷','納品']};
+function setup(w){w.version=12;w.operationRuns??=[];w.competition??={};w.cityTraffic??=Array.from({length:6},(_,i)=>({district:CITY[i].id,volume:20+i*8}));w.interfaceVersion??='5.1';return w}
+export const createWorld=(seed=42)=>setup(create50(seed));
+export function migrate(raw){if(!raw)throw Error('保存がありません');const w=structuredClone(raw);if(w.version===12)w.version=11;return setup(migrate50(w))}
+function firm(w,id){const c=w.companies.find(x=>x.id===id);if(!c)throw Error('会社なし');return c}
+export function reports(w,id){const r=reports50(w,id);return {...r,operations:w.operationRuns.filter(x=>x.companyId===id).slice(-20),traffic:w.cityTraffic}}
+export function validate(w){validate50({...w,version:11});for(const o of w.operationRuns)if(!activities[o.industry]?.includes(o.stage))throw Error('作業工程不正');return true}
+export function dispatch(world,cmd){if(world.commands[cmd.id])return world;
+const cid=cmd.companyId||world.companies[0].id;
+if(cmd.kind==='sectorJob'){const c=firm(world,cid);const q=world.market.find(q=>q.companyId===cid&&q.status==='open'&&q.deadline>=world.tick);if(!q)throw Error('有効な受注がありません');const w=setup(dispatch50({...world,version:11},{...cmd,kind:'accept',quoteId:q.id}));const contract=w.contracts.find(x=>x.quoteId===q.id);w.operationRuns.push({id:'RUN-'+(++w.counter),companyId:cid,industry:c.industry,contractId:contract.id,stage:activities[c.industry][0],step:0,started:w.tick,status:'running'});validate(w);return w}
+if(cmd.kind==='sectorStep'){const w=setup(structuredClone(world)),c=firm(w,cid),run=w.operationRuns.find(x=>x.companyId===cid&&x.status==='running');if(!run)throw Error('進行中の専用業務なし');if(run.step>=activities[c.industry].length-1)throw Error('全工程終了');const contract=w.contracts.find(x=>x.id===run.contractId);if(contract.status!=='working')throw Error('契約が進行中ではありません');run.step++;run.stage=activities[c.industry][run.step];run.lastStepAt=w.tick;w.commands[cmd.id]=true;validate(w);return w}
+if(cmd.kind==='npcCompetition'){const w=setup(dispatch50({...world,version:11},{...cmd,kind:'npcEconomicCycle'}));for(const npc of w.npcCompanies){const competitors=w.npcCompanies.filter(x=>x.industry===npc.industry);const demand=w.economy.demand;w.competition[npc.industry]={demand,competitors:competitors.length,pricePressure:Math.round((100-demand)/5)}}validate(w);return w}
+if(cmd.kind==='cityTrafficTick'){const w=setup(structuredClone(world));for(const t of w.cityTraffic)t.volume=Math.max(5,Math.min(100,Math.round(45+25*Math.sin((w.tick+t.volume)/17))));w.commands[cmd.id]=true;w.counter++;validate(w);return w}
+if(cmd.kind==='advance'||cmd.kind==='yearAdvance'){const w=setup(dispatch50({...world,version:11},cmd));for(const run of w.operationRuns.filter(x=>x.status==='running')){const contract=w.contracts.find(x=>x.id===run.contractId);if(contract?.status==='paid'||contract?.status==='delivered')run.status='completed';else if(contract?.status==='cancelled')run.status='cancelled'}validate(w);return w}
+const w=setup(dispatch50({...world,version:11},cmd));validate(w);return w}
