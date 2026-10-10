@@ -1,4 +1,4 @@
-name: Ver 4.4 Tests
+name: Ver 4.5 Tests
 on:
   push:
     branches: [main]
@@ -20,6 +20,7 @@ jobs:
           node --check sim.js
           node --check v42.js
           node --check v44.js
+          node --check v45.js
           node --check main.js
           node --check storage.js
       - name: Node unit and integration tests
