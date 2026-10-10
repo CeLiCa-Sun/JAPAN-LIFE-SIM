@@ -1,0 +1,25 @@
+name: Ver 4.2 Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: |
+          node --check sim.js
+          node --check v42.js
+          node --check main.js
+          node --check storage.js
+      - name: Node unit and integration tests
+        run: node --test test.mjs
